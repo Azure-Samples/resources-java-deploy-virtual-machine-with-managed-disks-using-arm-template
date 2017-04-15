@@ -7,10 +7,8 @@ author: anuchandy
 #Getting Started with Resources - Deploy Virtual Machine Using ARM Template - in Java #
 
 
-      Main function which runs the actual sample.
-      @param azure instance of the azure client
-      @return true if sample runs successfully
-     
+  Azure Resource sample for deploying virtual machine with managed disk using an ARM template.
+ 
 
 ## Running this Sample ##
 
