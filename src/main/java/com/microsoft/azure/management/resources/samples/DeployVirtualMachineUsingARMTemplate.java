@@ -122,6 +122,7 @@ public class DeployVirtualMachineUsingARMTemplate {
 
     private static String getTemplate() throws IllegalAccessException, JsonProcessingException, IOException {
         final String adminUsername = "tirekicker";
+        // [SuppressMessage("Microsoft.Security", "CS002:SecretInNextLine", Justification="Serves as an example, not for deployment. Please change when using this in your code.")]
         final String adminPassword = "12NewPA$$w0rd!";
         final String osDiskName = SdkContext.randomResourceName("osdisk-", 24);
 
@@ -142,7 +143,7 @@ public class DeployVirtualMachineUsingARMTemplate {
         final ObjectMapper mapper = new ObjectMapper();
         final ObjectNode parameter = mapper.createObjectNode();
         parameter.put("type", type);
-        if (type == "int") {
+        if ("int".equals(type)) {
             parameter.put("defaultValue", Integer.parseInt(fieldValue));
         } else {
             parameter.put("defaultValue", fieldValue);
