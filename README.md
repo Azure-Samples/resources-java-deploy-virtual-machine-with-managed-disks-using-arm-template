@@ -4,12 +4,12 @@ languages:
 - java
 products:
 - azure
-services: Resources
-platforms: java
-author: yaohaizh
+extensions:
+- services: Resources
+- platforms: java
 ---
 
-## Getting Started with Resources - Deploy Virtual Machine Using ARM Template - in Java ##
+# Getting Started with Resources - Deploy Virtual Machine Using ARM Template - in Java #
 
 
   Azure Resource sample for deploying virtual machine with managed disk using an ARM template.
