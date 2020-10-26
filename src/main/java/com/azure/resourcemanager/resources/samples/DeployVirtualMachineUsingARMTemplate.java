@@ -1,24 +1,26 @@
-/**
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for
- * license information.
- */
-package com.microsoft.azure.management.resources.samples;
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License.
+package com.azure.resourcemanager.resources.samples;
 
+import com.azure.core.credential.TokenCredential;
+import com.azure.core.http.policy.HttpLogDetailLevel;
+import com.azure.core.management.AzureEnvironment;
+import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.resourcemanager.AzureResourceManager;
+import com.azure.core.management.Region;
+import com.azure.core.management.profile.AzureProfile;
+import com.azure.resourcemanager.resources.fluentcore.utils.ResourceManagerUtils;
+import com.azure.resourcemanager.resources.models.Deployment;
+import com.azure.resourcemanager.resources.models.DeploymentMode;
+import com.azure.resourcemanager.samples.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.microsoft.azure.management.Azure;
-import com.microsoft.azure.management.resources.Deployment;
-import com.microsoft.azure.management.resources.DeploymentMode;
-import com.microsoft.azure.management.resources.fluentcore.arm.Region;
-import com.microsoft.azure.management.resources.fluentcore.utils.SdkContext;
-import com.microsoft.rest.LogLevel;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 
 /**
  * Azure Resource sample for deploying virtual machine with managed disk using an ARM template.
@@ -27,14 +29,15 @@ public class DeployVirtualMachineUsingARMTemplate {
 
     /**
      * Main function which runs the actual sample.
-     * @param azure instance of the azure client
+     *
+     * @param azureResourceManager instance of the azure client
      * @return true if sample runs successfully
      */
-    public static boolean runSample(Azure azure) {
-        final String rgName = SdkContext.randomResourceName("rgRSAT", 24);
-        final String deploymentName = SdkContext.randomResourceName("dpRSAT", 24);
+    public static boolean runSample(AzureResourceManager azureResourceManager) throws IOException, IllegalAccessException {
+        final String rgName = Utils.randomResourceName(azureResourceManager, "rgRSAT", 24);
+        final String deploymentName = Utils.randomResourceName(azureResourceManager, "dpRSAT", 24);
         try {
-            String templateJson = DeployVirtualMachineUsingARMTemplate.getTemplate();
+            String templateJson = DeployVirtualMachineUsingARMTemplate.getTemplate(azureResourceManager);
 
             System.out.println(templateJson);
 
@@ -43,7 +46,7 @@ public class DeployVirtualMachineUsingARMTemplate {
 
             System.out.println("Creating a resource group with name: " + rgName);
 
-            azure.resourceGroups().define(rgName)
+            azureResourceManager.resourceGroups().define(rgName)
                     .withRegion(Region.US_WEST)
                     .create();
 
@@ -56,7 +59,7 @@ public class DeployVirtualMachineUsingARMTemplate {
 
             System.out.println("Starting a deployment for an Azure Virtual Machine with managed disks: " + deploymentName);
 
-            azure.deployments().define(deploymentName)
+            azureResourceManager.deployments().define(deploymentName)
                     .withExistingResourceGroup(rgName)
                     .withTemplate(templateJson)
                     .withParameters("{}")
@@ -64,27 +67,22 @@ public class DeployVirtualMachineUsingARMTemplate {
                     .create();
 
             System.out.println("Started a deployment for an Azure Virtual Machine with managed disks: " + deploymentName);
-            Deployment deployment = azure.deployments().getByResourceGroup(rgName, deploymentName);
+            Deployment deployment = azureResourceManager.deployments().getByResourceGroup(rgName, deploymentName);
             System.out.println("Current deployment status : " + deployment.provisioningState());
 
             while (!(deployment.provisioningState().equalsIgnoreCase("Succeeded")
                     || deployment.provisioningState().equalsIgnoreCase("Failed")
                     || deployment.provisioningState().equalsIgnoreCase("Cancelled"))) {
-                SdkContext.sleep(10000);
-                deployment = azure.deployments().getByResourceGroup(rgName, deploymentName);
+                ResourceManagerUtils.sleep(Duration.ofSeconds(10));
+                deployment = azureResourceManager.deployments().getByResourceGroup(rgName, deploymentName);
                 System.out.println("Current deployment status : " + deployment.provisioningState());
             }
             return true;
-        } catch (Exception f) {
-
-            System.out.println(f.getMessage());
-            f.printStackTrace();
-
         } finally {
 
             try {
                 System.out.println("Deleting Resource Group: " + rgName);
-                azure.resourceGroups().beginDeleteByName(rgName);
+                azureResourceManager.resourceGroups().beginDeleteByName(rgName);
                 System.out.println("Deleted Resource Group: " + rgName);
             } catch (NullPointerException npe) {
                 System.out.println("Did not create any resources in Azure. No clean up is necessary");
@@ -92,7 +90,6 @@ public class DeployVirtualMachineUsingARMTemplate {
                 g.printStackTrace();
             }
         }
-        return false;
     }
 
     /**
@@ -106,36 +103,39 @@ public class DeployVirtualMachineUsingARMTemplate {
             //=================================================================
             // Authenticate
 
-            final File credFile = new File(System.getenv("AZURE_AUTH_LOCATION"));
+            final AzureProfile profile = new AzureProfile(AzureEnvironment.AZURE);
+            final TokenCredential credential = new DefaultAzureCredentialBuilder()
+                .authorityHost(profile.getEnvironment().getActiveDirectoryEndpoint())
+                .build();
 
-            Azure azure = Azure.configure()
-                    .withLogLevel(LogLevel.BODY_AND_HEADERS)
-                    .authenticate(credFile)
-                    .withDefaultSubscription();
+            AzureResourceManager azureResourceManager = AzureResourceManager
+                .configure()
+                .withLogLevel(HttpLogDetailLevel.BASIC)
+                .authenticate(credential, profile)
+                .withDefaultSubscription();
 
-            runSample(azure);
+            runSample(azureResourceManager);
         } catch (Exception e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
         }
     }
 
-    private static String getTemplate() throws IllegalAccessException, JsonProcessingException, IOException {
+    private static String getTemplate(AzureResourceManager azureResourceManager) throws IllegalAccessException, JsonProcessingException, IOException {
         final String adminUsername = "tirekicker";
-        // [SuppressMessage("Microsoft.Security", "CS002:SecretInNextLine", Justification="Serves as an example, not for deployment. Please change when using this in your code.")]
-        final String adminPassword = "12NewPA$$w0rd!";
-        final String osDiskName = SdkContext.randomResourceName("osdisk-", 24);
+        final String adminPassword = Utils.password();
+        final String osDiskName = Utils.randomResourceName(azureResourceManager, "osdisk-", 24);
 
-        final InputStream embeddedTemplate;
-        embeddedTemplate = DeployVirtualMachineUsingARMTemplate.class.getResourceAsStream("/virtualMachineWithManagedDisksTemplate.json");
+        try (InputStream embeddedTemplate = DeployVirtualMachineUsingARMTemplate.class.getResourceAsStream("/virtualMachineWithManagedDisksTemplate.json")) {
 
-        final ObjectMapper mapper = new ObjectMapper();
-        final JsonNode tmp = mapper.readTree(embeddedTemplate);
+            final ObjectMapper mapper = new ObjectMapper();
+            final JsonNode tmp = mapper.readTree(embeddedTemplate);
 
-        DeployVirtualMachineUsingARMTemplate.validateAndAddFieldValue("string", adminUsername, "adminUsername", null, tmp);
-        DeployVirtualMachineUsingARMTemplate.validateAndAddFieldValue("string", adminPassword, "adminPassword", null, tmp);
-        DeployVirtualMachineUsingARMTemplate.validateAndAddFieldValue("string", osDiskName, "osDiskName", null, tmp);
-        return tmp.toString();
+            DeployVirtualMachineUsingARMTemplate.validateAndAddFieldValue("string", adminUsername, "adminUsername", null, tmp);
+            DeployVirtualMachineUsingARMTemplate.validateAndAddFieldValue("string", adminPassword, "adminPassword", null, tmp);
+            DeployVirtualMachineUsingARMTemplate.validateAndAddFieldValue("string", osDiskName, "osDiskName", null, tmp);
+            return tmp.toString();
+        }
     }
 
     private static void validateAndAddFieldValue(String type, String fieldValue, String fieldName, String errorMessage,
